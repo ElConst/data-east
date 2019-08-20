@@ -1,0 +1,12 @@
+C:\Users\kulyanov\Documents\HTML Version\RobohelpNumerationFixer\bin\Release\netcoreapp2.2\win-x64\RobohelpNumerationFixer.exe
+C:\Users\kulyanov\Documents\HTML Version\RobohelpNumerationFixer\bin\Release\netcoreapp2.2\win-x64\RobohelpNumerationFixer.deps.json
+C:\Users\kulyanov\Documents\HTML Version\RobohelpNumerationFixer\bin\Release\netcoreapp2.2\win-x64\RobohelpNumerationFixer.runtimeconfig.json
+C:\Users\kulyanov\Documents\HTML Version\RobohelpNumerationFixer\bin\Release\netcoreapp2.2\win-x64\RobohelpNumerationFixer.runtimeconfig.dev.json
+C:\Users\kulyanov\Documents\HTML Version\RobohelpNumerationFixer\bin\Release\netcoreapp2.2\win-x64\RobohelpNumerationFixer.dll
+C:\Users\kulyanov\Documents\HTML Version\RobohelpNumerationFixer\bin\Release\netcoreapp2.2\win-x64\RobohelpNumerationFixer.pdb
+C:\Users\kulyanov\Documents\HTML Version\RobohelpNumerationFixer\obj\Release\netcoreapp2.2\win-x64\RobohelpNumerationFixer.csprojAssemblyReference.cache
+C:\Users\kulyanov\Documents\HTML Version\RobohelpNumerationFixer\obj\Release\netcoreapp2.2\win-x64\RobohelpNumerationFixer.csproj.CoreCompileInputs.cache
+C:\Users\kulyanov\Documents\HTML Version\RobohelpNumerationFixer\obj\Release\netcoreapp2.2\win-x64\RobohelpNumerationFixer.AssemblyInfoInputs.cache
+C:\Users\kulyanov\Documents\HTML Version\RobohelpNumerationFixer\obj\Release\netcoreapp2.2\win-x64\RobohelpNumerationFixer.AssemblyInfo.cs
+C:\Users\kulyanov\Documents\HTML Version\RobohelpNumerationFixer\obj\Release\netcoreapp2.2\win-x64\RobohelpNumerationFixer.dll
+C:\Users\kulyanov\Documents\HTML Version\RobohelpNumerationFixer\obj\Release\netcoreapp2.2\win-x64\RobohelpNumerationFixer.pdb

@@ -10,6 +10,20 @@ namespace RobohelpNumerationFixer
 {
     public class Program
     {
+        #region Help text
+        private const string helpText = 
+@"
+Для начала работы с программой необходимо при запуске указать
+в качестве первого параметра путь к XML файлу .hhc, в котором
+хранится список HTML страниц с пронумерованными картинками.
+Чтобы включить режим проверки, запустите программу со вторым
+параметром '-c' или '--check', чтобы запустить исправление
+нумерации, запустите программу с параметром '-f' или '--fix'.
+По умолчанию, если этот параметр отсутствует, запустится 
+режим проверки.
+";
+        #endregion
+
         // This class contains all needed information about a picture
         private class Picture
         {
@@ -26,10 +40,10 @@ namespace RobohelpNumerationFixer
             }
         }
 
-        /// <summary>Open "CoGIS 7.0.hhc" and get links to HTML filess</summary>
-        private static List<string> GetFilesListFromXML(string rootFolderPath)
+        /// <summary>Open .hhc file and get links to HTML files</summary>
+        private static List<string> GetFilesListFromXML(string hhcPath, string rootFolderPath)
         {
-            XDocument mainXmlDoc = XDocument.Load(rootFolderPath + @"\CoGIS 7.0.hhc");
+            XDocument mainXmlDoc = XDocument.Load(hhcPath);
             
             var items = mainXmlDoc.Descendants("item").ToArray();
             var filesPaths = from item in items 
@@ -41,38 +55,66 @@ namespace RobohelpNumerationFixer
 
         private static void Main(string[] args)
         {
-            #region Data initialization
-            string rootFolderPath = @"D:\CoGIS 7.0";
+            bool checkMode = true;
 
-            Console.WriteLine(@"Введите путь к папке с документацией, например 'C:\Users\username\Documents\CoGIS 7.0'");
-            rootFolderPath = Console.ReadLine();
+            #region Initialization
+            string rootFolderPath = "", hhcFilePath = "";
+            
+            if (args.Count() >= 1) 
+            { 
+                hhcFilePath = args[0];
+                if (!File.Exists(hhcFilePath))
+                {
+                    Console.WriteLine($"\nОшибка: .hhc файл не был найден.");
+                    Console.Read();
+                    return; 
+                }
+                rootFolderPath = Path.GetDirectoryName(hhcFilePath);
 
-            if (!File.Exists(rootFolderPath + @"\CoGIS 7.0.hhc")) 
+                if (args.Count() >= 2) 
+                { 
+                    switch (args[1])
+                    {
+                        case "-f":
+                        case "--fix":
+                            checkMode = false;
+                            break;
+                        
+                        case "-c":
+                        case "--check":
+                            break;
+
+                        default:
+                            Console.WriteLine("Неверно введен второй аргумент, запущен режим проверки.\n");
+                            break;
+                    }
+                } 
+            }
+            else
             {
-                Console.WriteLine($"\nОшибка: файл 'CoGIS 7.0.hhc' не был найден.");
+                Console.WriteLine(helpText);
                 Console.Read();
-                return; 
+                return;
             }
 
-            List<string> htmlFiles = GetFilesListFromXML(rootFolderPath);
+            List<string> htmlFiles = GetFilesListFromXML(hhcFilePath, rootFolderPath);
             #endregion
 
-            Console.WriteLine("Проверка...");
+            if (checkMode)
+            {
+                Console.WriteLine("Проверка...");
+
+                Checker.CheckMissingFiles(ref htmlFiles, true);
+                Checker.GetDuplicates(htmlFiles, true);
+                Checker.CheckEmptyPictures(htmlFiles);
+                Checker.CheckPicLabels(htmlFiles);
+
+                Console.Read();
+                return;
+            }
 
             Checker.CheckMissingFiles(ref htmlFiles);
-            Checker.CheckEmptyPictures(htmlFiles);
-            Checker.CheckPicLabels(htmlFiles);
             List<int> duplicateNumbers = Checker.GetDuplicates(htmlFiles);
-
-            Console.WriteLine("\nВведите цифру, соответствующую вашему выбору:");
-            Console.WriteLine("1. Начать исправление нумерации\n2. Выйти из программы");
-
-            ConsoleKeyInfo input;
-            do
-            {
-                input = Console.ReadKey();
-                if (input.Key == ConsoleKey.D2) { return; }
-            } while (input.Key != ConsoleKey.D1);
 
             Console.WriteLine("\nПодождите...");
 

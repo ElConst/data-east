@@ -9,7 +9,7 @@ namespace RobohelpNumerationFixer
     public class Checker
     {
         /// <summary>Check if any files from the list are missing and if they are, exclude them from the list</summary>
-        public static bool CheckMissingFiles(ref List<string> files)
+        public static bool CheckMissingFiles(ref List<string> files, bool consoleWarnings = false)
         {
             bool filesMissing = false;
             
@@ -17,7 +17,7 @@ namespace RobohelpNumerationFixer
             {
                 if (File.Exists(filePath)) { continue; }
                 
-                Console.WriteLine($"Файл '{filePath}' не найден.");
+                if (consoleWarnings) { Console.WriteLine($"Файл '{filePath}' не найден."); }
                 files.Remove(filePath);
                 filesMissing = true;
             }
@@ -56,7 +56,7 @@ namespace RobohelpNumerationFixer
         }
         
         /// <summary>Check HTML pages for duplicated picture numbers and if found, return them</summary>
-        public static List<int> GetDuplicates(List<string> htmlFiles)
+        public static List<int> GetDuplicates(List<string> htmlFiles, bool consoleWarnings = false)
         {
             List<int> existingPictures = new List<int>();
             List<string> picsPaths = new List<string>();   
@@ -88,15 +88,18 @@ namespace RobohelpNumerationFixer
             }
 
             duplicateNumbers.Sort();
-
-            foreach (int num in duplicateNumbers)
+            
+            if (consoleWarnings)
             {
-                Console.WriteLine($"\nКартинки с одинаковым именем 'Рис.{num}' найдены в следующих файлах:");
-                for (int i = 0; i < existingPictures.Count; i++)
+                foreach (int num in duplicateNumbers)
                 {
-                    if (existingPictures[i] == num) { Console.WriteLine(picsPaths[i]); }
+                    Console.WriteLine($"\nКартинки с одинаковым именем 'Рис.{num}' найдены в следующих файлах:");
+                    for (int i = 0; i < existingPictures.Count; i++)
+                    {
+                        if (existingPictures[i] == num) { Console.WriteLine(picsPaths[i]); }
+                    }
                 }
-            }
+            }            
 
             return duplicateNumbers;
         }
