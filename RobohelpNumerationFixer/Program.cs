@@ -8,19 +8,22 @@ using HtmlAgilityPack;
 
 namespace RobohelpNumerationFixer
 {
-    public class Program
+    public static class Program
     {
         #region Help text
         private const string helpText = 
 @"
 Для начала работы с программой необходимо при запуске указать
-в качестве первого параметра путь к XML файлу .hhc, в котором
+в качестве параметра путь к XML файлу .hhc, в котором
 хранится список HTML страниц с пронумерованными картинками.
-Чтобы включить режим проверки, запустите программу со вторым
-параметром '-c' или '--check', чтобы запустить исправление
-нумерации, запустите программу с параметром '-f' или '--fix'.
-По умолчанию, если этот параметр отсутствует, запустится 
-режим проверки.
+
+Чтобы выбрать режим работы, запустите программу с параметром
+'-c' или '--check' для режима проверки и '-f' или '--fix' для
+режима исправления. По умолчанию, если такой параметр
+отсутствует, запустится режим проверки. 
+
+Для того, чтобы консольные сообщения дублировались в отдельный
+файл, введите путь к нему в одном из параметров. 
 ";
         #endregion
 
@@ -40,106 +43,139 @@ namespace RobohelpNumerationFixer
             }
         }
 
-        /// <summary>Open .hhc file and get links to HTML files</summary>
-        private static List<string> GetFilesListFromXML(string hhcPath, string rootFolderPath)
+        /// <summary>Opens XML .hhc file and reads paths to HTML pages from it</summary>
+        /// <returns>Links to HTML files</returns>
+        private static List<string> GetFilesListFromXML(string hhcPath)
         {
+            string rootFolder = Path.GetDirectoryName(hhcPath);
+
             XDocument mainXmlDoc = XDocument.Load(hhcPath);
             
             var items = mainXmlDoc.Descendants("item").ToArray();
             var filesPaths = from item in items 
                             where item.Attribute("link") != null
-                            select $@"{rootFolderPath}\{item.Attribute("link").Value}";
+                            select $@"{rootFolder}\{item.Attribute("link").Value}";
 
             return filesPaths.ToList();
+        }
+
+        private static string logFilePath = "";
+        
+        /// <summary>Prints a message in console and appends this message to an output file if it was specified</summary>
+        public static void Log(string message = "")
+        {
+            Console.WriteLine(message);
+            if (logFilePath != "")
+            {
+                try 
+                {
+                    using (StreamWriter streamWriter = new StreamWriter(logFilePath, true))
+                    {
+                        streamWriter.WriteLine($"{message}");
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Возникла ошибка при попытке записать лог в файл.\n {e}");
+                    logFilePath = "";
+                }
+            }
         }
 
         private static void Main(string[] args)
         {
             bool checkMode = true;
 
+            // Choose program mode and set paths to needed files
             #region Initialization
-            string rootFolderPath = "", hhcFilePath = "";
+            string hhcFilePath = "";
             
-            if (args.Count() >= 1) 
+            if (args.Count() > 0) 
             { 
-                hhcFilePath = args[0];
-                if (!File.Exists(hhcFilePath))
+                // Check all given arguments
+                foreach (string arg in args)
                 {
+                    // Find and set path for main XML .hhc file
+                    if (File.Exists(arg) && Path.GetExtension(arg) == ".hhc" && hhcFilePath == "") 
+                    { 
+                        hhcFilePath = arg;
+                    }
+                    // If there is a path to another file (not .hhc), set it as an output file
+                    if (Directory.Exists(Path.GetDirectoryName(arg)) && Path.GetExtension(arg) != ".hhc" && logFilePath == "") 
+                    { 
+                        logFilePath = arg; 
+                        if (File.Exists(logFilePath)) { File.Delete(logFilePath); }
+                    }
+                    
+                    // Set program mode
+                    if (arg == "-c" || arg == "--check") { checkMode = true; }
+                    else if (arg == "-f" || arg == "--fix") { checkMode = false; }
+                }
+                if (hhcFilePath == "")
+                {
+                    // If main XML file wasn't found, tell about it and close the program since there's nothing to work with
                     Console.WriteLine($"\nОшибка: .hhc файл не был найден.");
-                    Console.Read();
                     return; 
                 }
-                rootFolderPath = Path.GetDirectoryName(hhcFilePath);
-
-                if (args.Count() >= 2) 
-                { 
-                    switch (args[1])
-                    {
-                        case "-f":
-                        case "--fix":
-                            checkMode = false;
-                            break;
-                        
-                        case "-c":
-                        case "--check":
-                            break;
-
-                        default:
-                            Console.WriteLine("Неверно введен второй аргумент, запущен режим проверки.\n");
-                            break;
-                    }
-                } 
             }
             else
             {
+                // If there was no arguments given, print help and close the program
                 Console.WriteLine(helpText);
                 Console.Read();
                 return;
             }
 
-            List<string> htmlFiles = GetFilesListFromXML(hhcFilePath, rootFolderPath);
+            List<string> htmlFiles = GetFilesListFromXML(hhcFilePath);
             #endregion
 
+            // If check mode was chosen, check all types off issues, tell about them and close the program
             if (checkMode)
             {
-                Console.WriteLine("Проверка...");
+                Console.WriteLine("Проверка...\n");
 
                 Checker.CheckMissingFiles(ref htmlFiles, true);
-                Checker.GetDuplicates(htmlFiles, true);
                 Checker.CheckEmptyPictures(htmlFiles);
                 Checker.CheckPicLabels(htmlFiles);
+                Checker.GetDuplicates(htmlFiles, true);
 
                 Console.Read();
                 return;
             }
 
+            // If fix mode was chosen, check missing files only, without any warnings
             Checker.CheckMissingFiles(ref htmlFiles);
-            List<int> duplicateNumbers = Checker.GetDuplicates(htmlFiles);
 
-            Console.WriteLine("\nПодождите...");
+            Log("Были изменены следующие номера:");
+            Log();
 
             List<Picture> pictures = new List<Picture>();
+            List<int> duplicateNumbers = Checker.GetDuplicates(htmlFiles);
             int currentPictureIndex = 0;
 
-            // Count pictures and put their unique keys (which are correct picture numbers 
+            // Get information about pictures and temporarily put their unique keys (which are correct picture numbers 
             // wrapped in hash signs) in labels to distinguish corrected ones
             foreach (string filePath in htmlFiles)
             {
+                string fileText = File.ReadAllText(filePath);
+                
                 HtmlDocument htmlDoc = new HtmlDocument();
                 htmlDoc.Load(filePath); 
 
-                // Get elements which contain information about pictures
-                HtmlNodeCollection picLabelClassNodes = htmlDoc.DocumentNode.SelectNodes(".//p[@class='Рисунокподпись' or @class='РисунокподписьЗнак']");
-                if (picLabelClassNodes == null) { continue; }
-                var picLabelNodes = from node in picLabelClassNodes.AsEnumerable()
+                // Get nodes with classes used to mark pictures labels
+                string xPath = ".//p[@class='Рисунокподпись' or @class='РисунокподписьЗнак']";
+                HtmlNodeCollection labelClassNodes = htmlDoc.DocumentNode.SelectNodes(xPath);
+                if (labelClassNodes == null) { continue; }
+                // Choose nodes with needed information
+                var picLabelNodes = from node in labelClassNodes.AsEnumerable()
                                     where Regex.Match(node.InnerText, @"ис\.?\s?\d+", RegexOptions.Singleline).Success
                                     select node;
 
-                foreach (HtmlNode labelNode in picLabelNodes.ToList())
+                foreach (HtmlNode labelNode in picLabelNodes)
                 {
                     currentPictureIndex++;
 
-                    // Get the number right after "Рис."
+                    // Get the number after "Рис."
                     int picOldNumber = Convert.ToInt32(Regex.Match(labelNode.InnerText, @"(?<=(ис\.?\s?))\d+", RegexOptions.Singleline).Value);
                     if (picOldNumber == currentPictureIndex) { continue; } // Skip if no numeration issues
                     
@@ -147,10 +183,14 @@ namespace RobohelpNumerationFixer
                     Picture pic = new Picture(filePath, picOldNumber, currentPictureIndex);
                     pictures.Add(pic);
                     
-                    // Put the key ("#index#") instead of old number
-                    labelNode.InnerHtml = Regex.Replace(labelNode.InnerHtml, $@"(?<=(ис\.?\s?)){pic.OldNumber}", pic.Key, RegexOptions.Singleline);
-                    htmlDoc.Save(filePath);
+                    // Put the key instead of old number
+                    fileText = Regex.Replace(fileText, $@"(?<=(ис\.?\s?)){pic.OldNumber}", pic.Key, RegexOptions.Singleline);
+
+                    Log($"'Рис.{pic.OldNumber}' -> 'Рис.{pic.NewNumber}' в файле {filePath}");
+                    Log();
                 }
+
+                File.WriteAllText(filePath, fileText);
             }
 
             // Deal with duplicates first to prevent their references from getting messed
@@ -160,25 +200,20 @@ namespace RobohelpNumerationFixer
                 foreach (Picture pic in pictures)
                 {
                     if (pic.OldNumber != duplicate) { continue; }
-                    
-                    string fileText = File.ReadAllText(pic.File);
-                    string changedFileText = Regex.Replace(fileText, $@"(?<=(рис\.\s?&#160;(\<.*\>)?)){pic.OldNumber}", pic.Key, RegexOptions.Singleline);
-                    File.WriteAllText(pic.File, changedFileText);
+                    ReplacePicReferences(pic, pic.File);
                 }
             }
 
-            // Replace the remaining references with unique key to know which are corrected already
+            // Replace the remaining references with unique keys
             foreach (Picture pic in pictures)
             {
                 foreach (string filePath in htmlFiles)
                 {
-                    string fileText = File.ReadAllText(filePath);
-                    string changedFileText = Regex.Replace(fileText, $@"(?<=(рис\.\s?&#160;(\<.*\>)?)){pic.OldNumber}", pic.Key, RegexOptions.Singleline);
-                    File.WriteAllText(filePath, changedFileText);
+                    ReplacePicReferences(pic, filePath);
                 }
             }
 
-            // Finally replace picture keys with correct numbers
+            // Finally replace keys with correct numbers
             foreach (Picture pic in pictures)
             {
                 foreach (string filePath in htmlFiles)
@@ -191,6 +226,17 @@ namespace RobohelpNumerationFixer
 
             Console.WriteLine("\nКартинки пронумерованы.\n");
             Console.Read();
+        }
+
+        /// <summary>Replaces all "рис." references to a picture inside a file</summary>
+        private static void ReplacePicReferences(Picture pic, string filePath)
+        {
+            string fileText = File.ReadAllText(filePath);
+
+            string picRefPattern = $@"(?<=(рис\.\s?&#160;(\<.*\>)?)){pic.OldNumber}";
+            string changedFileText = Regex.Replace(fileText, picRefPattern, pic.Key, RegexOptions.Singleline);
+                    
+            File.WriteAllText(filePath, changedFileText);
         }
     }
 }

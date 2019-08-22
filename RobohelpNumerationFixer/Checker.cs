@@ -1,115 +1,35 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
 
 namespace RobohelpNumerationFixer
 {
-    public class Checker
+    public static class Checker
     {
-        /// <summary>Check if any files from the list are missing and if they are, exclude them from the list</summary>
-        public static bool CheckMissingFiles(ref List<string> files, bool consoleWarnings = false)
+        /// <summary>Checks if any files in a list are missing and if they are, excludes them from the list</summary>
+        public static void CheckMissingFiles(ref List<string> files, bool consoleWarnings = false)
         {
-            bool filesMissing = false;
-            
-            foreach (string filePath in files)
-            {
-                if (File.Exists(filePath)) { continue; }
-                
-                if (consoleWarnings) { Console.WriteLine($"Файл '{filePath}' не найден."); }
-                files.Remove(filePath);
-                filesMissing = true;
-            }
-
-            return filesMissing;
-        }
-
-        /// <summary>Check HTML pages for miscellaneous issues with pictures labels</summary>
-        public static bool CheckPicLabels(List<string> htmlFiles)
-        {
-            bool miscIssues = false;
-
-            foreach (string filePath in htmlFiles)
-            {
-                HtmlDocument htmlDoc = new HtmlDocument();  
-                htmlDoc.Load(filePath); 
-
-                HtmlNodeCollection picLabelNodes = htmlDoc.DocumentNode.SelectNodes(".//p[@class='Рисунокподпись' or @class='РисунокподписьЗнак']");
-                if (picLabelNodes == null) { continue; }
-
-                foreach (HtmlNode labelNode in picLabelNodes)
-                {
-                    if (!Regex.Match(labelNode.InnerText, @"ис\.\s?\d+").Success)
-                    {
-                        if (Regex.Match(labelNode.InnerText, @"ис\.\s?(?!\d+)").Success)
-                        {
-                            Console.WriteLine($"\nВ файле '{filePath}' содержится 'Рис.' без номера. Возможно, номер находится в следующем абзаце. Во время исправления этот случай будет пропущен.");
-                            miscIssues = true;
-                        }
-                        continue;
-                    }
-                }
-            }
-
-            return miscIssues;
-        }
-        
-        /// <summary>Check HTML pages for duplicated picture numbers and if found, return them</summary>
-        public static List<int> GetDuplicates(List<string> htmlFiles, bool consoleWarnings = false)
-        {
-            List<int> existingPictures = new List<int>();
-            List<string> picsPaths = new List<string>();   
-
-            List<int> duplicateNumbers = new List<int>(); 
-
-            foreach (string filePath in htmlFiles)
-            {
-                HtmlDocument htmlDoc = new HtmlDocument();  
-                htmlDoc.Load(filePath); 
-
-                HtmlNodeCollection picLabelNodes = htmlDoc.DocumentNode.SelectNodes(".//p[@class='Рисунокподпись' or @class='РисунокподписьЗнак']");
-                if (picLabelNodes == null) { continue; }
-
-                foreach (HtmlNode labelNode in picLabelNodes)
-                {
-                    if (!Regex.Match(labelNode.InnerText, @"ис\.?\s?\d+").Success) { continue; }
-
-                    int picNumber = Convert.ToInt32(Regex.Match(labelNode.InnerText, @"(?<=(ис\.?\s?))\d+").Value);
-                    
-                    if (!duplicateNumbers.Contains(picNumber) && existingPictures.Contains(picNumber)) 
-                    { 
-                        duplicateNumbers.Add(picNumber); 
-                    }
-                    
-                    existingPictures.Add(picNumber);
-                    picsPaths.Add(filePath);
-                }
-            }
-
-            duplicateNumbers.Sort();
-            
             if (consoleWarnings)
             {
-                foreach (int num in duplicateNumbers)
+                foreach (string filePath in files)
                 {
-                    Console.WriteLine($"\nКартинки с одинаковым именем 'Рис.{num}' найдены в следующих файлах:");
-                    for (int i = 0; i < existingPictures.Count; i++)
-                    {
-                        if (existingPictures[i] == num) { Console.WriteLine(picsPaths[i]); }
+                    if (!File.Exists(filePath)) 
+                    { 
+                        Program.Log($"Файл '{filePath}' не найден.");
+                        Program.Log();
                     }
                 }
-            }            
+            }
 
-            return duplicateNumbers;
+            files.RemoveAll(f => !File.Exists(f));
         }
 
-        /// <summary>Check HTML pages for "Рисуноккартинка" class without an image</summary>
-        public static bool CheckEmptyPictures(List<string> htmlFiles)
+        /// <summary>Checks HTML pages for "Рисуноккартинка" classes without images</summary>
+        public static void CheckEmptyPictures(List<string> htmlFiles)
         {
-            bool hasEmptyPictures = false;
-
-            Console.WriteLine();
             foreach (string filePath in htmlFiles)
             {
                 HtmlDocument htmlDoc = new HtmlDocument();  
@@ -122,13 +42,89 @@ namespace RobohelpNumerationFixer
                 {
                     if (Regex.Match(picNode.InnerHtml, @"\<img").Success) { continue; }
 
-                    Console.WriteLine($"В файле '{filePath}' содержится HTML элемент 'Рисуноккартинка' без изображения.");
-                    hasEmptyPictures = true;
+                    Program.Log($"В файле '{filePath}' содержится HTML элемент 'Рисуноккартинка' без изображения.");
+                    Program.Log();
                 }
             }
-            Console.WriteLine();
+        }
 
-            return hasEmptyPictures;
+        /// <summary>Checks HTML pages for miscellaneous issues with pictures labels</summary>
+        public static void CheckPicLabels(List<string> htmlFiles)
+        {
+            foreach (string filePath in htmlFiles)
+            {
+                HtmlDocument htmlDoc = new HtmlDocument();  
+                htmlDoc.Load(filePath); 
+
+                string xPath = ".//p[@class='Рисунокподпись' or @class='РисунокподписьЗнак']";
+                HtmlNodeCollection picLabelNodes = htmlDoc.DocumentNode.SelectNodes(xPath);
+                if (picLabelNodes == null) { continue; }
+
+                foreach (HtmlNode labelNode in picLabelNodes)
+                {
+                    if (Regex.Match(labelNode.InnerText, @"ис\.\s?\d+").Success) { continue; } // No issues
+                    
+                    if (Regex.Match(labelNode.InnerText, @"ис\.\s?(?!\d+)").Success)
+                    {
+                        Program.Log($"В файле '{filePath}' содержится 'Рис.' без номера. Возможно, номер находится в следующем абзаце. Во время исправления этот случай будет пропущен.");
+                        Program.Log();
+                    }
+                }
+            }
+        }
+        
+        /// <summary>Checks HTML pages for duplicated picture numbers</summary>
+        /// <returns>Duplicated numbers</returns>
+        public static List<int> GetDuplicates(List<string> htmlFiles, bool consoleWarnings = false)
+        {
+            List<int> pictureNumbers = new List<int>();
+            List<string> picsPaths = new List<string>();   
+
+            List<int> duplicateNumbers = new List<int>(); 
+
+            foreach (string filePath in htmlFiles)
+            {
+                HtmlDocument htmlDoc = new HtmlDocument();  
+                htmlDoc.Load(filePath); 
+
+                // Select picture labels
+                string xPath = ".//p[@class='Рисунокподпись' or @class='РисунокподписьЗнак']";
+                HtmlNodeCollection picLabelNodes = htmlDoc.DocumentNode.SelectNodes(xPath);
+                var query = picLabelNodes.AsEnumerable()?.Where(node => Regex.Match(node.InnerText, @"ис\.?\s?\d+").Success);
+
+                if (query == null) { continue; }
+
+                // Add repetitive picture numbers to the duplicates list
+                foreach (HtmlNode labelNode in query)
+                {
+                    int picNumber = Convert.ToInt32(Regex.Match(labelNode.InnerText, @"(?<=(ис\.?\s?))\d+").Value);
+                    
+                    if (!duplicateNumbers.Contains(picNumber) && pictureNumbers.Contains(picNumber)) 
+                    { 
+                        duplicateNumbers.Add(picNumber); 
+                    }
+
+                    pictureNumbers.Add(picNumber);
+                    picsPaths.Add(filePath);
+                }
+            }
+
+            duplicateNumbers.Sort();
+            
+            if (consoleWarnings)
+            {
+                foreach (int num in duplicateNumbers)
+                {
+                    Program.Log($"Картинки с именем 'Рис.{num}' найдены в следующих файлах:");
+                    for (int i = 0; i < pictureNumbers.Count; i++)
+                    {
+                        if (pictureNumbers[i] == num) { Program.Log(picsPaths[i]); }
+                    }
+                    Program.Log();
+                }
+            }            
+
+            return duplicateNumbers;
         }
     }
 }
