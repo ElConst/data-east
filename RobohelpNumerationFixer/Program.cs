@@ -11,19 +11,19 @@ namespace RobohelpNumerationFixer
     public static class Program
     {
         #region Help text
-        private const string helpText = 
+        private const string HelpText =
 @"
-Для начала работы с программой необходимо при запуске указать
-в качестве параметра путь к XML файлу .hhc, в котором
-хранится список HTML страниц с пронумерованными картинками.
+Проверяет нумерацию картинок в Robohelp документации и исправляет на сквозную.
 
-Чтобы выбрать режим работы, запустите программу с параметром
-'-c' или '--check' для режима проверки и '-f' или '--fix' для
-режима исправления. По умолчанию, если такой параметр
-отсутствует, запустится режим проверки. 
-
-Для того, чтобы консольные сообщения дублировались в отдельный
-файл, введите путь к нему в одном из параметров. 
+Опции и параметры:
+path_name           : путь к файлу .hhc, в котором содержатся ссылки на HTML 
+                      страницы
+--out=path_name
+-o=path_name        : выводить информацию в файл path_name вместо консоли
+--check -с          : режим проверки (установлен по умолчанию)
+--fix -f            : режим изменений
+--help -h           : вывести помощь
+--wait -w           : ждать ввода с клавиатуры перед выходом из программы
 ";
         #endregion
 
@@ -59,38 +59,44 @@ namespace RobohelpNumerationFixer
             return filesPaths.ToList();
         }
 
+        private static bool logToFile = false;
         private static string logFilePath = "";
         
-        /// <summary>Prints a message in console and appends this message to an output file if it was specified</summary>
+        /// <summary>Prints a message in console or appends this message to an output file if it was specified</summary>
         public static void Log(string message = "")
         {
-            Console.WriteLine(message);
-            if (logFilePath != "")
+            if (!logToFile)
             {
-                try 
+                Console.WriteLine(message);
+                return;
+            }
+
+            if (logFilePath == "") { return; }
+
+            try
+            {
+                using (StreamWriter streamWriter = new StreamWriter(logFilePath, true))
                 {
-                    using (StreamWriter streamWriter = new StreamWriter(logFilePath, true))
-                    {
-                        streamWriter.WriteLine($"{message}");
-                    }
+                    streamWriter.WriteLine($"{message}");
                 }
-                catch (Exception e)
-                {
-                    Console.WriteLine($"Возникла ошибка при попытке записать лог в файл.\n");
-                    logFilePath = "";
-                }
+            }
+            catch
+            {
+                Console.WriteLine("Возникла ошибка при попытке записать лог в файл.\n");
+                logFilePath = "";
             }
         }
 
         private static void Main(string[] args)
         {
             bool checkMode = true;
+            bool showHelp = false, waitWhenDone = false;
 
             // Choose program mode and set paths to needed files
             #region Initialization
             string hhcFilePath = "";
             
-            if (args.Count() > 0) 
+            if (args.Count() > 0)
             { 
                 // Check all given arguments
                 foreach (string arg in args)
@@ -100,31 +106,44 @@ namespace RobohelpNumerationFixer
                     { 
                         hhcFilePath = arg;
                     }
-                    // If there is a path to another file (not .hhc), set it as an output file
-                    if (Directory.Exists(Path.GetDirectoryName(arg)) && Path.GetExtension(arg) != ".hhc" && logFilePath == "") 
-                    { 
-                        logFilePath = arg; 
+
+                    // If the parameter for an output file is specified, place its path into a variable
+                    Match outputFileMatch = Regex.Match(arg, @"(?<=((-o=)|(--out=))).*$");
+                    if (outputFileMatch.Success && Directory.Exists(Path.GetDirectoryName(outputFileMatch.Value)))
+                    {
+                        logToFile = true;
+                        logFilePath = outputFileMatch.Value;
                         if (File.Exists(logFilePath)) { File.Delete(logFilePath); }
                     }
                     
-                    // Set program mode
                     if (arg == "-c" || arg == "--check") { checkMode = true; }
                     else if (arg == "-f" || arg == "--fix") { checkMode = false; }
+
+                    if (arg == "-h" || arg == "--help") { showHelp = true; }
+
+                    if (arg == "-w" || arg == "--wait") { waitWhenDone = true; }
                 }
-                if (hhcFilePath == "")
+
+                // Show help and close the program if the help parameter was specified
+                if (showHelp)
+                {
+                    Log(HelpText);
+                    if (waitWhenDone) { Console.Read(); }
+                    return;
+                }
+                else if (hhcFilePath == "")
                 {
                     // If main XML file wasn't found, tell about it and close the program since there's nothing to work with
-                    Console.WriteLine($"\nОшибка: .hhc файл не был найден.");
-                    return; 
+                    Log("\nОшибка: .hhc файл не был найден.");
+                    if (waitWhenDone) { Console.Read(); }
+                    return;
                 }
             }
             else
             {
-                // If there was no arguments given, print help and close the program
-                Console.WriteLine(helpText);
-                Console.Read();
+                Console.WriteLine("Отсутствуют параметры запуска. Введите параметр '-h' или '--help', чтобы открыть помощь.");
                 return;
-            }
+            } // If there was no arguments given, close the program
 
             List<string> htmlFiles = GetFilesListFromXML(hhcFilePath);
             #endregion
@@ -132,14 +151,12 @@ namespace RobohelpNumerationFixer
             // If check mode was chosen, check all types off issues, tell about them and close the program
             if (checkMode)
             {
-                Console.WriteLine("Проверка...\n");
-
                 Checker.CheckMissingFiles(ref htmlFiles, true);
                 Checker.CheckEmptyPictures(htmlFiles);
                 Checker.CheckPicLabels(htmlFiles);
                 Checker.GetDuplicates(htmlFiles, true);
 
-                Console.Read();
+                if (waitWhenDone) { Console.Read(); }
                 return;
             }
 
@@ -223,9 +240,7 @@ namespace RobohelpNumerationFixer
                     File.WriteAllText(filePath, fileText);
                 }
             }
-
-            Console.WriteLine("\nКартинки пронумерованы.\n");
-            Console.Read();
+            if (waitWhenDone) { Console.Read(); }
         }
 
         /// <summary>Replaces all "рис." references to a picture inside a file</summary>
