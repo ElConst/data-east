@@ -51,7 +51,7 @@ namespace RobohelpNumerationFixer
 
             XDocument mainXmlDoc = XDocument.Load(hhcPath);
             
-            var items = mainXmlDoc.Descendants("item").ToArray();
+            var items = mainXmlDoc.Descendants("item");
             var filesPaths = from item in items 
                             where item.Attribute("link") != null
                             select $@"{rootFolder}\{item.Attribute("link").Value}";
@@ -76,7 +76,7 @@ namespace RobohelpNumerationFixer
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine($"Возникла ошибка при попытке записать лог в файл.\n {e}");
+                    Console.WriteLine($"Возникла ошибка при попытке записать лог в файл.\n");
                     logFilePath = "";
                 }
             }
@@ -160,7 +160,7 @@ namespace RobohelpNumerationFixer
                 string fileText = File.ReadAllText(filePath);
                 
                 HtmlDocument htmlDoc = new HtmlDocument();
-                htmlDoc.Load(filePath); 
+                htmlDoc.Load(filePath, true); 
 
                 // Get nodes with classes used to mark pictures labels
                 string xPath = ".//p[@class='Рисунокподпись' or @class='РисунокподписьЗнак']";

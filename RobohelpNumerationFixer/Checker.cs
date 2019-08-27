@@ -33,15 +33,12 @@ namespace RobohelpNumerationFixer
             foreach (string filePath in htmlFiles)
             {
                 HtmlDocument htmlDoc = new HtmlDocument();  
-                htmlDoc.Load(filePath); 
+                htmlDoc.Load(filePath, true); 
 
                 HtmlNodeCollection pictureNodes = htmlDoc.DocumentNode.SelectNodes(".//p[@class='Рисуноккартинка']");
-                if (pictureNodes == null) { continue; }
 
-                foreach (HtmlNode picNode in pictureNodes)
+                if (pictureNodes != null && pictureNodes.Count(node => !Regex.Match(node.InnerHtml, @"\<img").Success) > 0)
                 {
-                    if (Regex.Match(picNode.InnerHtml, @"\<img").Success) { continue; }
-
                     Program.Log($"В файле '{filePath}' содержится HTML элемент 'Рисуноккартинка' без изображения.");
                     Program.Log();
                 }
@@ -54,7 +51,7 @@ namespace RobohelpNumerationFixer
             foreach (string filePath in htmlFiles)
             {
                 HtmlDocument htmlDoc = new HtmlDocument();  
-                htmlDoc.Load(filePath); 
+                htmlDoc.Load(filePath, true); 
 
                 string xPath = ".//p[@class='Рисунокподпись' or @class='РисунокподписьЗнак']";
                 HtmlNodeCollection picLabelNodes = htmlDoc.DocumentNode.SelectNodes(xPath);
@@ -85,7 +82,7 @@ namespace RobohelpNumerationFixer
             foreach (string filePath in htmlFiles)
             {
                 HtmlDocument htmlDoc = new HtmlDocument();  
-                htmlDoc.Load(filePath); 
+                htmlDoc.Load(filePath, true); 
 
                 // Select picture labels
                 string xPath = ".//p[@class='Рисунокподпись' or @class='РисунокподписьЗнак']";
